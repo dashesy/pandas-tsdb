@@ -107,7 +107,6 @@ def df_to_indb(df,
                **kwargs):
     """ convert dataframe to InfluxDB json body (a list of dictionaries)
     convert datetime index and vectors if necessary.
-    geolocation is taken from df['_geo'] if available otherwise from meta['geo']
 
     Inputs:
         df        - dataframe **indexed by datetime**

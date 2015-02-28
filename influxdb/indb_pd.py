@@ -12,7 +12,10 @@ from indb_io import push_indb, query_indb, InfluxDBError
 
 # keys to translate from dataframe to labels/tags and back
 default_inline_labels = {
-                    '_pk': 'pk', # primary key for each data frame session
+                    '_pk': 'pk',
+                    '_loc': 'loc', 
+                    '_user_id': 'user_id',
+                    '_sex': 'sex', 
                     '_session': 'session',
                 }
 
@@ -104,9 +107,11 @@ def df_to_indb(df,
                zero_null=True,
                precision='ms',
                strtime=False,
+               force_precision=True,
                **kwargs):
     """ convert dataframe to InfluxDB json body (a list of dictionaries)
     convert datetime index and vectors if necessary.
+    geolocation is taken from df['_geo'] if available otherwise from meta['geo']
 
     Inputs:
         df        - dataframe **indexed by datetime**
@@ -120,6 +125,7 @@ def df_to_indb(df,
         zero_null - if should ignore zero readings same as missing
         precision - required precision
         strtime   - if timestamp should be in string format
+        force_precision - if should add precision for each data point
     """
     if df is None or len(df) == 0:
         raise InfluxDBEmpty("Empty sensor data")
@@ -254,9 +260,10 @@ def df_to_indb(df,
             sensor = '{ns}{sensor}'.format(ns=ns, sensor=sensor)
             indb = {
                 'name': sensor,
-                'values': {'value': val},
-#                 'precision': to_precision.get(precision, precision),
+                'fields': {'value': val},
             }
+            if force_precision:
+                indb['precision'] = to_precision.get(precision, precision)
             if not is_null(ts):
                 indb['timestamp'] = ts
             if mlabels:
@@ -322,11 +329,11 @@ def record_indb(auth, data, **kwargs):
     return push_indb(auth, json_body, **kwargs)
 
 
-def response_to_df(lst, ns=None, inlabels=None,
+def response_to_df(data, ns=None, inlabels=None,
                **kwargs):
     """convert InfluxDB response to dataframe (result ofa query)
     Inputs:
-        lst     - json data (list) from InfluxDB backend
+        data    - json data from InfluxDB backend
         ns      - namespace of the sensors, columns will be created stripping the namespace
         inlabels  - labels inside the df
         
@@ -334,6 +341,15 @@ def response_to_df(lst, ns=None, inlabels=None,
         ns1, ns2, ...    - extra namespaces to factor out
     """
 
+    if not data:
+        return pd.DataFrame()
+    
+    if isinstance(data, basestring):
+        data = json.loads(data)
+    
+    if isinstance(data, dict):
+        data = data.get('results', [])
+            
     if inlabels is None:
         inlabels = default_inline_labels
 
@@ -343,13 +359,15 @@ def response_to_df(lst, ns=None, inlabels=None,
         ncol = col
         prev_match = ''
         for ns in all_ns:
+            if not ns:
+                continue
             if len(ns) > len(prev_match) and col.startswith(ns):
                 prev_match = ns
                 ncol = col[len(ns):]
         return ncol
 
     sdfs = {} # session dataframes
-    for chunk_idx, chunk in enumerate(lst):
+    for chunk_idx, chunk in enumerate(data):
         error = chunk.get('error')
         if error:
             raise InfluxDBSyntaxError('{chunk_idx}: {error}'.format(
@@ -371,7 +389,7 @@ def response_to_df(lst, ns=None, inlabels=None,
                 if col != 'time' and name: 
                     if col == 'value':
                         return name
-                    return '{name}.{col}'.format(name=name, col=col)
+                    return '{name}.{col}'.format(name=name, col=_get_col(col))
                 return col
             columns = [_name_of(col) for col in columns]
             df = pd.DataFrame(values, columns=columns)
@@ -394,10 +412,10 @@ def response_to_df(lst, ns=None, inlabels=None,
         return pd.DataFrame()
 
     dfs = []
-    for ses in sdfs.values():
+    for ses in sdfs.itervalues():
         if len(ses) == 0:
             continue
-        df = pd.concat(ses, axis=1)
+        df = pd.concat(ses)
         dfs.append(df)
 
     if len(dfs) == 0:

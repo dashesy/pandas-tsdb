@@ -13,7 +13,6 @@ from indb_io import push_indb, query_indb, InfluxDBError
 # keys to translate from dataframe to labels/tags and back
 default_inline_labels = {
                     '_pk': 'pk',
-                    '_loc': 'loc', 
                     '_user_id': 'user_id',
                     '_session': 'session',
                 }

@@ -15,7 +15,6 @@ default_inline_labels = {
                     '_pk': 'pk',
                     '_loc': 'loc', 
                     '_user_id': 'user_id',
-                    '_sex': 'sex', 
                     '_session': 'session',
                 }
 

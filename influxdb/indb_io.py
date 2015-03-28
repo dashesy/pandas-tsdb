@@ -8,13 +8,14 @@ import gzip
 import json
 import StringIO
 
-_dfault_base_url = ''
 
 class InfluxDBError(ValueError):
     pass
 
+
 class InfluxDBAuthError(InfluxDBError):
     pass
+
 
 class InfluxDBIOError(ValueError):
     def __init__(self, response):
@@ -37,13 +38,11 @@ class InfluxDBIOError(ValueError):
             "{0}: {1}".format(self.code, error))
         self.error = error
 
-def push_indb(auth, data, compress=False, url='http://localhost:8086/write', **kwargs):
+
+def push_indb(auth, data, compress=False):
     """ push data to backend
-    Inputs:
-        data     - InfluxDB json data
-        params   - url parameters (username, password, ...) 
-        compress - if should compress data
-        url      - api url
+    :param data: InfluxDB json data
+    :param compress: if should compress data
     """
     js = data
     data = None 
@@ -57,6 +56,9 @@ def push_indb(auth, data, compress=False, url='http://localhost:8086/write', **k
         headers.update({
             'Content-Type': 'application/gzip',
         })
+
+    auth = auth.copy()
+    url = auth.pop('wurl')
     response = requests.post(url,
                              json=js,
                              data=data,
@@ -70,14 +72,28 @@ def push_indb(auth, data, compress=False, url='http://localhost:8086/write', **k
         return response.json()['result']
     return response
 
-def get_auth_indb(username=None, password=None):
+
+def get_auth_indb(username=None, password=None, url=None, qurl=None, wurl=None):
     """authentication
-    Inputs:
-        username,password - username and password
+    :param username,password: username and password
+    :param qurl: api base url, will be used to set unspecified qurl or wurl
+    :param qurl: api query url
+    :param wurl: api write url
     """
+    if url:
+        if not qurl:
+            qurl = '{url}/query'.format(url=url)
+        if not wurl:
+            wurl = '{url}/write'.format(url=url)
+    if not qurl:
+        qurl = 'http://localhost:8086/query'
+    if not wurl:
+        wurl = 'http://localhost:8086/write'
     params = {
         'u': username,
         'p': password,
+        'qurl': qurl,
+        'wurl': wurl,
     }
     # At this time only simple username/password
     if not params.get('u') or not params.get('p'):
@@ -85,11 +101,13 @@ def get_auth_indb(username=None, password=None):
     
     return params
 
-def query_indb(auth, query, database=None, chunked=False, 
-               url='http://localhost:8086/query', **kwargs):
-    """ query the backend
-    Inputs:
-        params   - url parameters (username, password, ...) 
+
+def query_indb(auth, query, database=None, chunked=False):
+    """query the backend
+    :param auth: authentication by get_auth_indb
+    :param query: sql-like query
+    :param database: database to query
+    :param chunked: if chunked response is needed
     """
     if not auth or not auth.get('u') or not auth.get('p'):
         raise InfluxDBAuthError('Authentication parameters not specified')
@@ -102,17 +120,18 @@ def query_indb(auth, query, database=None, chunked=False,
         
     if chunked:
         params['chunked'] = chunked
-        
+
+    url = params.pop('qurl')
     response = requests.get(url,
                             params=params)
     if response.status_code != 200:
         raise InfluxDBIOError(response)
 
-    
     if chunked:
         _decoder = json.JSONDecoder()
         # Author: Adrian Sampson <adrian@radbox.org>
         # Source: https://gist.github.com/sampsyo/920215
+
         def loads(s):
             """A generator reading a sequence of JSON values from a string."""
             while s:

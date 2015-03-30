@@ -73,18 +73,21 @@ def push_indb(auth, data, compress=False):
     return response
 
 
-def get_auth_indb(username=None, password=None, url=None, qurl=None, wurl=None):
+def get_auth_indb(username=None, password=None,
+                  url=None, qurl=None, wurl=None,
+                  port=8086):
     """authentication
     :param username,password: username and password
     :param qurl: api base url, will be used to set unspecified qurl or wurl
     :param qurl: api query url
     :param wurl: api write url
+    :param port: port number
     """
     if url:
         if not qurl:
-            qurl = '{url}/query'.format(url=url)
+            qurl = '{url}:{port}/query'.format(url=url, port=port)
         if not wurl:
-            wurl = '{url}/write'.format(url=url)
+            wurl = '{url}:{port}/write'.format(url=url, port=port)
     if not qurl:
         qurl = 'http://localhost:8086/query'
     if not wurl:

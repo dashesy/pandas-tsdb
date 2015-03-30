@@ -9,15 +9,19 @@ import json
 from indb_io import push_indb, query_indb, InfluxDBError
 
 
-class InfluxDBEmpty(InfluxDBError):
+class EmptyInput(InfluxDBError):
     pass
 
 
-class InfluxDBSyntaxError(InfluxDBError):
+class QueryError(InfluxDBError):
     pass
 
 
-class InfluxDBInvalidData(InfluxDBError):
+class InvalidData(InfluxDBError):
+    pass
+
+
+class MeasurementNotFound(QueryError):
     pass
 
 
@@ -108,7 +112,7 @@ def df_to_indb(df,
     :param use_iso_format: if time should be in string format
     """
     if df is None or len(df) == 0:
-        raise InfluxDBEmpty("Empty sensor data")
+        raise EmptyInput("Empty sensor data")
     df = df.copy()
     if not labels:
         labels = {}
@@ -116,7 +120,7 @@ def df_to_indb(df,
     # ignore all-missing rows and columns
     df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
     if len(df) == 0:
-        raise InfluxDBEmpty("Empty sensor data")
+        raise EmptyInput("Empty sensor data")
 
     epoch = np.datetime64('1970-01-01T00:00Z')
 
@@ -233,7 +237,7 @@ def df_to_indb(df,
                 # detect measurement name based on column name
                 mname, psensor = _get_mname(sensor)
             if mname is None:
-                raise InfluxDBInvalidData('No measurement name for {sensor}'.format(sensor=sensor))
+                raise InvalidData('No measurement name for {sensor}'.format(sensor=sensor))
             if mname not in measurements:
                 measurements[mname] = {}
             measurements[mname][psensor] = _json_valid(val)
@@ -245,7 +249,7 @@ def df_to_indb(df,
             }
             if not _is_null(ts):
                 if isinstance(ts, basestring) and np.datetime64(ts) == np.datetime64('NaT'):
-                    raise InfluxDBInvalidData('Invalid NaT in time')
+                    raise InvalidData('Invalid NaT in time')
                 indb['timestamp'] = ts
                 if not use_iso_format:
                     # FIXME: not always need to specify precision for all points
@@ -255,7 +259,7 @@ def df_to_indb(df,
             points.append(indb)
             
     if not points:
-        raise InfluxDBEmpty("Empty sensor data")
+        raise EmptyInput("Empty sensor data")
     
     return InDBJson(data)
 
@@ -346,7 +350,13 @@ def response_to_df(data, sensor_id='sensor_id'):
     for chunk_idx, chunk in enumerate(data):
         error = chunk.get('error')
         if error:
-            raise InfluxDBSyntaxError('{chunk_idx}: {error}'.format(
+            pe = error.lower()
+            if 'measurement' in pe and 'not found' in pe:
+                raise MeasurementNotFound('{chunk_idx}: {error}'.format(
+                    error=error,
+                    chunk_idx=chunk_idx
+                ))
+            raise QueryError('{chunk_idx}: {error}'.format(
                 error=error,
                 chunk_idx=chunk_idx
             ))

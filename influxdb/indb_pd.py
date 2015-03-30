@@ -362,7 +362,7 @@ def response_to_df(data, sensor_id='sensor_id'):
             name = row.get('name')
             
             def _name_of(col):
-                if col == 'time':
+                if col == 'time' or not name:
                     return col
                 return '{name}.{col}'.format(col=col, name=name)
 
@@ -399,7 +399,9 @@ def response_to_df(data, sensor_id='sensor_id'):
     return data
 
 
-def query_indb_df(auth, query, database=None, chunked=False,
+def query_indb_df(auth, query,
+                  database=None,
+                  chunked=False,
                   sensor_id='sensor_id'):
     """ construct a dataframe from sensors
     Look at query_indb and response_to_df for parameters

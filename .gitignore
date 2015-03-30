@@ -1,0 +1,7 @@
+dist/
+build/
+
+*.pyo
+*.pyc
+
+

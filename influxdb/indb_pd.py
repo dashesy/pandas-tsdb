@@ -25,6 +25,10 @@ class MeasurementNotFound(QueryError):
     pass
 
 
+class FieldNotFound(QueryError):
+    pass
+
+
 def _is_null(val, zero_null=False):
     """check if value is missing
     :param val: value to check
@@ -354,6 +358,11 @@ def response_to_df(data, sensor_id='sensor_id'):
             pe = error.lower()
             if 'measurement' in pe and 'not found' in pe:
                 raise MeasurementNotFound('{chunk_idx}: {error}'.format(
+                    error=error,
+                    chunk_idx=chunk_idx
+                ))
+            if 'unknown' in pe and 'field' in pe and 'tag' in pe:
+                raise FieldNotFound('{chunk_idx}: {error}'.format(
                     error=error,
                     chunk_idx=chunk_idx
                 ))

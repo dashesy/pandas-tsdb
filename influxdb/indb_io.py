@@ -58,6 +58,7 @@ def push_indb(auth, data, compress=False):
         })
 
     auth = auth.copy()
+    auth.pop('qurl', None)
     url = auth.pop('wurl')
     response = requests.post(url,
                              json=js,
@@ -124,6 +125,7 @@ def query_indb(auth, query, database=None, chunked=False):
     if chunked:
         params['chunked'] = chunked
 
+    params.pop('wurl', None)
     url = params.pop('qurl')
     response = requests.get(url,
                             params=params)

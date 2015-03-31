@@ -200,9 +200,8 @@ def df_to_indb(df,
         # tags key/value pairs must be both strings
         labels = {str(k): str(v) for k, v in labels.iteritems()}
         data['tags'] = labels
-    
-    for _, sensors in df.iterrows():
-        sensors = sensors.dropna()
+    for sensors in df.itertuples():
+        sensors = {k: v for (k, v) in zip(df.columns, sensors[1:])}
         mlabels = {}
 
         # extract per-row tags

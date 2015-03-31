@@ -54,7 +54,7 @@ def _get_namespace(sensor):
     parts = sensor.split(".")
     if len(parts) < 2:
         return None, sensor
-    return parts[0], ".".join(parts[1:])
+    return ".".join(parts[0:-1]), parts[-1]
 
 
 def _json_valid(val):
@@ -235,8 +235,10 @@ def df_to_indb(df,
             if mname is None:
                 # detect measurement name based on column name
                 mname, psensor = _get_mname(sensor)
-            if mname is None:
+            if not mname:
                 raise InvalidData('No measurement name for {sensor}'.format(sensor=sensor))
+            if not psensor:
+                raise InvalidData('No field name for {sensor}'.format(sensor=sensor))
             if mname not in measurements:
                 measurements[mname] = {}
             measurements[mname][psensor] = _json_valid(val)

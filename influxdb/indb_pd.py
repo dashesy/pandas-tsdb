@@ -6,27 +6,7 @@ Copyright Amiigo Inc.
 import pandas as pd
 import numpy as np
 import json
-from indb_io import push_indb, query_indb, InfluxDBError
-
-
-class EmptyInput(InfluxDBError):
-    pass
-
-
-class QueryError(InfluxDBError):
-    pass
-
-
-class InvalidData(InfluxDBError):
-    pass
-
-
-class MeasurementNotFound(QueryError):
-    pass
-
-
-class FieldNotFound(QueryError):
-    pass
+from indb_io import push_indb, query_indb, EmptyInput, InvalidData
 
 
 def _is_null(val, zero_null=False):
@@ -353,23 +333,6 @@ def response_to_df(data, sensor_id='sensor_id'):
             
     sdfs = {}  # sensor dataframes
     for chunk_idx, chunk in enumerate(data):
-        error = chunk.get('error')
-        if error:
-            pe = error.lower()
-            if 'measurement' in pe and 'not found' in pe:
-                raise MeasurementNotFound('{chunk_idx}: {error}'.format(
-                    error=error,
-                    chunk_idx=chunk_idx
-                ))
-            if 'unknown' in pe and 'field' in pe and 'tag' in pe:
-                raise FieldNotFound('{chunk_idx}: {error}'.format(
-                    error=error,
-                    chunk_idx=chunk_idx
-                ))
-            raise QueryError('{chunk_idx}: {error}'.format(
-                error=error,
-                chunk_idx=chunk_idx
-            ))
         rows = chunk.get('series')
         if not rows:
             continue

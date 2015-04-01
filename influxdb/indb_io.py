@@ -17,6 +17,62 @@ class InfluxDBAuthError(InfluxDBError):
     pass
 
 
+class UnknownError(InfluxDBError):
+    pass
+
+
+class QueryError(InfluxDBError):
+    pass
+
+
+class MeasurementNotFound(QueryError):
+    pass
+
+
+class FieldNotFound(QueryError):
+    pass
+
+
+class EmptyInput(InfluxDBError):
+    pass
+
+
+class InvalidData(InfluxDBError):
+    pass
+
+
+def _raise_error(error, chunk_idx=None, code=200):
+    if chunk_idx is not None:
+        error = '{code}: {chunk_idx}: {error}'.format(
+            error=error,
+            chunk_idx=chunk_idx,
+            code=code
+        )
+    pe = error.lower()
+    if 'measurement' in pe and 'not found' in pe:
+        raise MeasurementNotFound(error)
+    if 'unknown' in pe and 'field' in pe and 'tag' in pe:
+        raise FieldNotFound(error)
+    raise QueryError(error)
+
+
+def _raise_response_error(response):
+    chunk_idx = None
+    error = response.reason
+    code = response.status_code
+    try:
+        response = response.json()
+    except:
+        pass
+    else:
+        error = response.get('error')
+        for chunk_idx, chunk in enumerate(response.get('results', [])):
+            error = chunk.get('error')
+            if error:
+                break
+    _raise_error(error, chunk_idx=chunk_idx, code=code)
+
+
 class InfluxDBIOError(ValueError):
     def __init__(self, response):
         error = response.reason
@@ -39,10 +95,11 @@ class InfluxDBIOError(ValueError):
         self.error = error
 
 
-def push_indb(auth, data, compress=False):
+def push_indb(auth, data, compress=False, raise_error=True):
     """ push data to backend
     :param data: InfluxDB json data
     :param compress: if should compress data
+    :param raise_error: if should raise error on response errors
     """
     js = data
     data = None 
@@ -53,6 +110,7 @@ def push_indb(auth, data, compress=False):
         g.write(json.dumps(data))
         g.close()
         data = s.getvalue()
+        js = None
         headers.update({
             'Content-Type': 'application/gzip',
         })
@@ -66,9 +124,15 @@ def push_indb(auth, data, compress=False):
                              params=auth,
                              headers=headers)
 
+    if not raise_error:
+        try:
+            return response.json()['result']
+        except:
+            return response
+
     if response.status_code != 200:
-        raise InfluxDBIOError(response)
-    
+        _raise_response_error(response)
+
     if response.content: 
         return response.json()['result']
     return response
@@ -106,12 +170,13 @@ def get_auth_indb(username=None, password=None,
     return params
 
 
-def query_indb(auth, query, database=None, chunked=False):
+def query_indb(auth, query, database=None, chunked=False, raise_error=True):
     """query the backend
     :param auth: authentication by get_auth_indb
     :param query: sql-like query
     :param database: database to query
     :param chunked: if chunked response is needed
+    :param raise_error: if should raise error on response errors
     """
     if not auth or not auth.get('u') or not auth.get('p'):
         raise InfluxDBAuthError('Authentication parameters not specified')
@@ -130,7 +195,9 @@ def query_indb(auth, query, database=None, chunked=False):
     response = requests.get(url,
                             params=params)
     if response.status_code != 200:
-        raise InfluxDBIOError(response)
+        if raise_error:
+            _raise_response_error(response)
+        return response
 
     if chunked:
         _decoder = json.JSONDecoder()
@@ -149,4 +216,14 @@ def query_indb(auth, query, database=None, chunked=False):
                 
         return list(loads(response.content.decode()))
 
-    return response.json()['results']
+    data = response.json()['results']
+    if not raise_error:
+        return data
+
+    # simple error checks
+    for chunk_idx, chunk in enumerate(data):
+        error = chunk.get('error')
+        if error:
+            _raise_error(error, chunk_idx=chunk_idx)
+
+    return data

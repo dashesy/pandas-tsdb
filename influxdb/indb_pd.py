@@ -316,10 +316,11 @@ def record_indb(auth, data,
     return push_indb(auth, json_body, compress=compress)
 
 
-def response_to_df(data, sensor_id='sensor_id'):
+def response_to_df(data, sensor_id='sensor_id', tz='utc'):
     """convert InfluxDB response (result of a query) to dataframe
     :param data: json data from InfluxDB backend
     :param sensor_id: the tag that (along with time) uniquely defines a row of one sensor
+    :param tz: string or pytz.timezone object
     """
 
     if not data:
@@ -379,6 +380,11 @@ def response_to_df(data, sensor_id='sensor_id'):
         return pd.DataFrame()
 
     data = pd.concat(dfs).sort_index()
+    if tz:
+        try:
+            data = data.tz_localize(tz)
+        except:
+            pass
     return data
 
 

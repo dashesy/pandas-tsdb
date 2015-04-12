@@ -17,5 +17,5 @@ query_indb(auth, "GRANT READ ON mydb TO boz")
 
 query_indb_df(auth, 'SHOW DATABASES')
 query_indb_df(auth, 'SHOW RETENTION POLICIES mydb')
-query_indb_df(auth, 'SHOW MEASUREMENTS', database='_internal')
-query_indb_df(auth, 'SELECT * from server', database='_internal')
+query_indb_df(auth, 'SHOW MEASUREMENTS', database='_influxdb')
+query_indb_df(auth, 'SELECT * from server', database='_influxdb')
